@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>영원히 우리는 함께야</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Cpath d='M24 4 L41 10 V22 C41 33 34 41 24 45 C14 41 7 33 7 22 V10 Z' fill='%23EFE9FC' stroke='%236E56CF' stroke-width='2.5'/%3E%3Cpath d='M24 15 L27 22 L34.5 22.8 L29 27.8 L30.6 35 L24 31 L17.4 35 L19 27.8 L13.5 22.8 L21 22 Z' fill='%236E56CF'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Cpath d='M31 6 C22 6 15 13.5 15 23 C15 32.5 22 40 31 40 C24.5 37 20 30.5 20 23 C20 15.5 24.5 9 31 6 Z' fill='%23FBF0C7' stroke='%23B8860B' stroke-width='2.5'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&family=Gowun+Dodum&family=JetBrains+Mono:wght@500&display=swap">
 <style>
   :root {
@@ -318,23 +318,14 @@
      아래 firebaseConfig 자리에 Firebase 콘솔에서 복사한 값을 붙여넣으세요.
      (같이 드린 "배포 가이드" 문서의 3단계를 참고하세요)
      ========================================================================= */
-  // Import the functions you need from the SDKs you need
-import { initializeApp } from "firebase/app";
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
-
-// Your web app's Firebase configuration
-const firebaseConfig = {
-  apiKey: "AIzaSyAnDt866mjwnk06ju4_GAO3ZzCFSNzP710",
-  authDomain: "forever-together-f76a5.firebaseapp.com",
-  projectId: "forever-together-f76a5",
-  storageBucket: "forever-together-f76a5.firebasestorage.app",
-  messagingSenderId: "695417129730",
-  appId: "1:695417129730:web:796f1c8d4895cf1abe901b"
-};
-
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
+  const firebaseConfig = {
+    apiKey: "AIzaSyAnDt866mjwnk06ju4_GAO3ZzCFSNzP710",
+    authDomain: "forever-together-f76a5.firebaseapp.com",
+    projectId: "forever-together-f76a5",
+    storageBucket: "forever-together-f76a5.firebasestorage.app",
+    messagingSenderId: "695417129730",
+    appId: "1:695417129730:web:796f1c8d4895cf1abe901b"
+  };
   /* ========================================================================= */
 
   /* Firebase SDK is loaded dynamically inside connectFirebase() below, wrapped
