@@ -124,7 +124,7 @@
 
   .rank-list { display: flex; flex-direction: column; gap: 10px; }
   .rank-row {
-    display: grid; grid-template-columns: 34px 1fr auto auto; align-items: center; gap: 12px;
+    display: grid; grid-template-columns: 34px 1fr auto auto 30px; align-items: center; gap: 12px;
     padding: 12px 14px; border: 1px solid var(--paper-border); border-radius: 14px;
   }
   .rank-row .avatar {
@@ -144,6 +144,14 @@
     font-family: 'Jua', 'Gowun Dodum', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif; font-size: 11px; flex: none;
   }
   .stamp.loss { border-color: var(--negative); color: var(--negative); }
+  .stamp.empty { border-color: var(--paper-border); color: var(--ink-faint); background: var(--bg); }
+  .rank-row-btn {
+    flex: none; width: 28px; height: 28px; border-radius: 50%;
+    border: 1.5px solid var(--paper-border); background: var(--paper); color: var(--accent);
+    display: flex; align-items: center; justify-content: center; cursor: pointer; justify-self: end;
+  }
+  .rank-row-btn svg { width: 14px; height: 14px; }
+  .rank-row-btn:hover { background: var(--accent-soft); }
   .rank-row.hl-sky { background: var(--sky-soft); }
   .rank-row.hl-gold { background: var(--gold-soft); }
   .rank-legend { display: flex; gap: 14px; flex-wrap: wrap; margin: 2px 0 0; }
@@ -270,9 +278,11 @@
     .brand-sub { display: none; }
     .brand-title { font-size: 15px; }
     .topbar { gap: 8px; padding: 12px 14px; }
-    .rank-row { grid-template-columns: 28px 1fr auto auto; gap: 8px; }
+    .rank-row { grid-template-columns: 28px 1fr auto auto 24px; gap: 8px; }
     .stamp-row { gap: 2px; }
     .stamp { width: 18px; height: 18px; font-size: 8px; border-width: 1.5px; }
+    .rank-row-btn { width: 24px; height: 24px; }
+    .rank-row-btn svg { width: 12px; height: 12px; }
   }
 </style>
 </head>
@@ -347,7 +357,8 @@
     megaphone: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11v2a2 2 0 0 0 2 2h1l1 4h2l-1-4h1l10 4V5L9 9H6a2 2 0 0 0-2 2z"/><path d="M19 9.5a3 3 0 0 1 0 5"/></svg>',
     exclaim: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v6"/><circle cx="12" cy="16.3" r="0.9" fill="currentColor" stroke="none"/></svg>',
     crown: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5l4 3 5-6.5 5 6.5 4-3-2 9.5H5z"/><path d="M5 18h14"/></svg>',
-    ops: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4h6a1 1 0 0 1 1 1v1H8V5a1 1 0 0 1 1-1z"/><rect x="5" y="6" width="14" height="15" rx="2"/><path d="M9 12h6"/><path d="M9 16h6"/></svg>'
+    ops: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4h6a1 1 0 0 1 1 1v1H8V5a1 1 0 0 1 1-1z"/><rect x="5" y="6" width="14" height="15" rx="2"/><path d="M9 12h6"/><path d="M9 16h6"/></svg>',
+    history: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/><path d="M12 8v5l3 2"/></svg>'
   };
   var TAB_DEFS = [
     { id: "rank", label: "길드 랭크", icon: ICONS.rank },
@@ -450,6 +461,16 @@
     var diff = day === 0 ? -6 : 1 - day;
     var monday = new Date(d.getFullYear(), d.getMonth(), d.getDate() + diff);
     return toDateKey(monday);
+  }
+  var WEEKDAY_LABELS = ["월", "화", "수", "목", "금", "토", "일"];
+  function weekDatesMonSun(d) {
+    var startKey = weekStartKey(d);
+    var start = new Date(startKey + "T00:00:00");
+    var out = [];
+    for (var i = 0; i < 7; i++) {
+      out.push(toDateKey(new Date(start.getFullYear(), start.getMonth(), start.getDate() + i)));
+    }
+    return out;
   }
   function guildRankWeeklyCount(memberId) {
     var wk = weekStartKey(new Date());
@@ -602,6 +623,42 @@
     });
   }
 
+  /* ---------------- recent games modal ---------------- */
+  function showRecentGamesModal(memberKey) {
+    var memberRecords = rankRecords.filter(function (r) { return (r.memberId || r.memberName) === memberKey; });
+    memberRecords.sort(function (a, b) { return b.date < a.date ? -1 : 1; });
+    var recent7 = memberRecords.slice(0, 7);
+    var m = memberById(memberKey);
+    var name = (m && m.name) || (recent7[0] && recent7[0].memberName) || memberKey;
+    var wins = recent7.filter(function (r) { return r.result === "win"; }).length;
+    var losses = recent7.length - wins;
+    var body;
+    if (recent7.length === 0) {
+      body = '<p style="margin:0 0 16px;color:var(--ink-soft);font-size:13.5px">기록이 없어요.</p>';
+    } else {
+      var oldestFirst = recent7.slice().reverse();
+      var stampsHtml = oldestFirst.map(function (r) {
+        return '<span class="stamp' + (r.result === "loss" ? " loss" : "") + '" title="' + fmtDateShort(r.date) + '">' + (r.result === "loss" ? "패" : "승") + "</span>";
+      }).join("");
+      body = (
+        '<div class="stamp-row" style="justify-content:flex-start;margin-bottom:12px">' + stampsHtml + "</div>" +
+        '<p style="margin:0 0 16px;color:var(--ink-soft);font-size:13.5px">' + wins + "승 " + losses + "패 (최근 " + recent7.length + "경기)</p>"
+      );
+    }
+    var root = document.getElementById("modalRoot");
+    root.innerHTML =
+      '<div class="modal-back"><div class="modal-card">' +
+      '<h3 class="notice-title">' + ICONS.history + " " + escapeHtml(name) + ' 최근 7회 기록</h3>' +
+      body +
+      '<div class="modal-actions"><button class="btn ghost" data-act="recentClose">닫기</button></div>' +
+      "</div></div>";
+    var closeIt = function () { root.innerHTML = ""; };
+    root.querySelector('[data-act="recentClose"]').onclick = closeIt;
+    root.querySelector(".modal-back").addEventListener("click", function (e) {
+      if (e.target.classList.contains("modal-back")) closeIt();
+    });
+  }
+
   /* ---------------- boot ---------------- */
   // Nav and an initial render happen immediately and unconditionally, so the
   // tabs are always clickable even if Firebase never manages to connect.
@@ -739,6 +796,8 @@
   function renderRank() {
     var byMember = {};
     var weekStart = weekStartKey(new Date());
+    var weekDates = weekDatesMonSun(new Date());
+    var recordsByKeyDate = {};
     rankRecords.forEach(function (r) {
       var key = r.memberId || r.memberName;
       if (!byMember[key]) byMember[key] = { key: key, name: r.memberName, wins: 0, losses: 0, last: r.date, recent: [], weekCount: 0 };
@@ -746,6 +805,7 @@
       if (r.result === "win") byMember[key].wins++; else byMember[key].losses++;
       if (!byMember[key].last || r.date > byMember[key].last) byMember[key].last = r.date;
       byMember[key].recent.push(r);
+      recordsByKeyDate[key + "|" + r.date] = r;
     });
     var list = Object.keys(byMember).map(function (k) { return byMember[k]; });
     list.forEach(function (p) { p.recent.sort(function (a, b) { return b.date < a.date ? -1 : 1; }); p.recent = p.recent.slice(0, 7); });
@@ -763,9 +823,10 @@
       body = '<div class="rank-list">' + list.map(function (p) {
         var games = p.wins + p.losses;
         var rate = games ? Math.round((p.wins / games) * 100) : 0;
-        var oldestFirst = p.recent.slice().reverse();
-        var stamps = oldestFirst.map(function (r) {
-          return '<span class="stamp' + (r.result === "loss" ? " loss" : "") + '">' + (r.result === "loss" ? "패" : "승") + "</span>";
+        var stamps = weekDates.map(function (dateStr, idx) {
+          var rec = recordsByKeyDate[p.key + "|" + dateStr];
+          if (!rec) return '<span class="stamp empty" title="' + WEEKDAY_LABELS[idx] + '요일">' + WEEKDAY_LABELS[idx] + "</span>";
+          return '<span class="stamp' + (rec.result === "loss" ? " loss" : "") + '" title="' + WEEKDAY_LABELS[idx] + '요일">' + (rec.result === "loss" ? "패" : "승") + "</span>";
         }).join("");
         var hlClass = p.weekCount >= 7 ? " hl-gold" : p.weekCount >= 5 ? " hl-sky" : "";
         return (
@@ -774,6 +835,7 @@
           '<div class="who"><div class="rname">' + escapeHtml(p.name || "(이름없음)") + '</div><div class="rmeta">최근 참여 ' + fmtDateShort(p.last) + "</div></div>" +
           '<div class="stamp-row">' + stamps + "</div>" +
           '<div class="wl"><b class="w">' + p.wins + "승</b> <b class=\"l\">" + p.losses + "패</b><br><span style=\"color:var(--ink-faint)\">승률 " + rate + "%</span></div>" +
+          '<button class="rank-row-btn" type="button" data-role="recentGamesBtn" data-key="' + escapeHtml(p.key) + '" title="최근 7회 기록 보기">' + ICONS.history + "</button>" +
           "</div>"
         );
       }).join("") + "</div>";
@@ -1254,8 +1316,9 @@
         "<h3>길드 랭크 탭</h3>" +
         '<p class="hint">길드 랭크 기록이 있는 길드원들의 전적이 보여요.</p>' +
         '<ul class="mini-list">' +
-        "<li>각 줄에 최근 7경기 결과가 초록 테두리 \"승\" / 빨강 테두리 \"패\" 도장 모양으로 나오고, 가장 최근 경기가 오른쪽 끝에 와요.</li>" +
-        "<li>맨 오른쪽 승률(%)은 최근 7경기가 아니라 그 길드원의 지금까지 전체 전적을 통틀어 계산돼요.</li>" +
+        "<li>각 줄에 이번 주(월~일) 요일별 승/패가 초록 테두리 \"승\" / 빨강 테두리 \"패\" 도장 모양으로 나와요. 그 날 경기가 없으면 요일 글자만 연하게 표시돼요.</li>" +
+        "<li>맨 오른쪽 승률(%)은 이번 주가 아니라 그 길드원의 지금까지 전체 전적을 통틀어 계산돼요.</li>" +
+        "<li>맨 끝의 시계 모양 버튼을 누르면 그 길드원의 최근 7회 기록만 따로 모아서 볼 수 있어요.</li>" +
         "<li>이번 주(월~일 기준) 길드 랭크를 5회 이상 참여한 길드원은 줄 배경이 연한 하늘색, 7회 참여하면 연한 노란색으로 표시돼요.</li>" +
         "<li>상단에 오늘 날짜와 \"9월 2주차\" 같은 몇 주차인지, 마지막으로 기록이 추가·삭제된 시각도 함께 보여요.</li>" +
         "<li>오른쪽 위 왕관 아이콘(\"담당자\")을 누르면 \"일별 길드 랭크 운영진\" 칸이 떠요. 월~일 요일별로 그날 길드 랭크를 담당하는 사람 닉네임을 적을 수 있어요. 관리자 비밀번호 없이 누구나 바로 적고 저장할 수 있어요.</li>" +
@@ -1331,6 +1394,10 @@
   function wireTabEvents() {
     var rankDutyBtn = document.getElementById("rankDutyBtn");
     if (rankDutyBtn) rankDutyBtn.onclick = showRankDutyModal;
+
+    Array.prototype.forEach.call(document.querySelectorAll('[data-role="recentGamesBtn"]'), function (btn) {
+      btn.onclick = function () { showRecentGamesModal(btn.getAttribute("data-key")); };
+    });
 
     // Shared password-gate wiring: used by both the 관리 tab and the 운영 tab,
     // since they use the same admin password / isAdmin session flag.
