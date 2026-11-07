@@ -144,7 +144,6 @@
     font-family: 'Jua', 'Gowun Dodum', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif; font-size: 11px; flex: none;
   }
   .stamp.loss { border-color: var(--negative); color: var(--negative); }
-  .stamp.empty { border-color: var(--paper-border); color: var(--ink-faint); background: var(--bg); }
   .rank-row-btn {
     flex: none; width: 28px; height: 28px; border-radius: 50%;
     border: 1.5px solid var(--paper-border); background: var(--paper); color: var(--accent);
@@ -462,7 +461,6 @@
     var monday = new Date(d.getFullYear(), d.getMonth(), d.getDate() + diff);
     return toDateKey(monday);
   }
-  var WEEKDAY_LABELS = ["월", "화", "수", "목", "금", "토", "일"];
   function weekDatesMonSun(d) {
     var startKey = weekStartKey(d);
     var start = new Date(startKey + "T00:00:00");
@@ -625,30 +623,32 @@
 
   /* ---------------- recent games modal ---------------- */
   function showRecentGamesModal(memberKey) {
+    var weekStart = weekStartKey(new Date());
     var memberRecords = rankRecords.filter(function (r) { return (r.memberId || r.memberName) === memberKey; });
-    memberRecords.sort(function (a, b) { return b.date < a.date ? -1 : 1; });
-    var recent7 = memberRecords.slice(0, 7);
+    memberRecords.sort(function (a, b) { return a.date < b.date ? -1 : 1; });
+    var priorTwo = memberRecords.filter(function (r) { return r.date < weekStart; }).slice(-2);
+    var thisWeekGames = memberRecords.filter(function (r) { return r.date >= weekStart; });
+    var combined = priorTwo.concat(thisWeekGames);
     var m = memberById(memberKey);
-    var name = (m && m.name) || (recent7[0] && recent7[0].memberName) || memberKey;
-    var wins = recent7.filter(function (r) { return r.result === "win"; }).length;
-    var losses = recent7.length - wins;
+    var name = (m && m.name) || (combined[0] && combined[0].memberName) || memberKey;
+    var wins = combined.filter(function (r) { return r.result === "win"; }).length;
+    var losses = combined.length - wins;
     var body;
-    if (recent7.length === 0) {
+    if (combined.length === 0) {
       body = '<p style="margin:0 0 16px;color:var(--ink-soft);font-size:13.5px">기록이 없어요.</p>';
     } else {
-      var oldestFirst = recent7.slice().reverse();
-      var stampsHtml = oldestFirst.map(function (r) {
+      var stampsHtml = combined.map(function (r) {
         return '<span class="stamp' + (r.result === "loss" ? " loss" : "") + '" title="' + fmtDateShort(r.date) + '">' + (r.result === "loss" ? "패" : "승") + "</span>";
       }).join("");
       body = (
         '<div class="stamp-row" style="justify-content:flex-start;margin-bottom:12px">' + stampsHtml + "</div>" +
-        '<p style="margin:0 0 16px;color:var(--ink-soft);font-size:13.5px">' + wins + "승 " + losses + "패 (최근 " + recent7.length + "경기)</p>"
+        '<p style="margin:0 0 16px;color:var(--ink-soft);font-size:13.5px">' + wins + "승 " + losses + "패 (이전 " + priorTwo.length + "경기 + 이번 주 " + thisWeekGames.length + "경기)</p>"
       );
     }
     var root = document.getElementById("modalRoot");
     root.innerHTML =
       '<div class="modal-back"><div class="modal-card">' +
-      '<h3 class="notice-title">' + ICONS.history + " " + escapeHtml(name) + ' 최근 7회 기록</h3>' +
+      '<h3 class="notice-title">' + ICONS.history + " " + escapeHtml(name) + ' 전적 (이전 2경기 포함)</h3>' +
       body +
       '<div class="modal-actions"><button class="btn ghost" data-act="recentClose">닫기</button></div>' +
       "</div></div>";
@@ -823,11 +823,12 @@
       body = '<div class="rank-list">' + list.map(function (p) {
         var games = p.wins + p.losses;
         var rate = games ? Math.round((p.wins / games) * 100) : 0;
-        var stamps = weekDates.map(function (dateStr, idx) {
-          var rec = recordsByKeyDate[p.key + "|" + dateStr];
-          if (!rec) return '<span class="stamp empty" title="' + WEEKDAY_LABELS[idx] + '요일">' + WEEKDAY_LABELS[idx] + "</span>";
-          return '<span class="stamp' + (rec.result === "loss" ? " loss" : "") + '" title="' + WEEKDAY_LABELS[idx] + '요일">' + (rec.result === "loss" ? "패" : "승") + "</span>";
-        }).join("");
+        var weekGames = weekDates.map(function (dateStr) { return recordsByKeyDate[p.key + "|" + dateStr]; }).filter(Boolean);
+        var stamps = weekGames.length
+          ? weekGames.map(function (rec) {
+              return '<span class="stamp' + (rec.result === "loss" ? " loss" : "") + '" title="' + fmtDateShort(rec.date) + '">' + (rec.result === "loss" ? "패" : "승") + "</span>";
+            }).join("")
+          : '<span style="color:var(--ink-faint);font-size:12px">이번 주 기록 없음</span>';
         var hlClass = p.weekCount >= 7 ? " hl-gold" : p.weekCount >= 5 ? " hl-sky" : "";
         return (
           '<div class="rank-row' + hlClass + '">' +
@@ -835,7 +836,7 @@
           '<div class="who"><div class="rname">' + escapeHtml(p.name || "(이름없음)") + '</div><div class="rmeta">최근 참여 ' + fmtDateShort(p.last) + "</div></div>" +
           '<div class="stamp-row">' + stamps + "</div>" +
           '<div class="wl"><b class="w">' + p.wins + "승</b> <b class=\"l\">" + p.losses + "패</b><br><span style=\"color:var(--ink-faint)\">승률 " + rate + "%</span></div>" +
-          '<button class="rank-row-btn" type="button" data-role="recentGamesBtn" data-key="' + escapeHtml(p.key) + '" title="최근 7회 기록 보기">' + ICONS.history + "</button>" +
+          '<button class="rank-row-btn" type="button" data-role="recentGamesBtn" data-key="' + escapeHtml(p.key) + '" title="이전 2경기 포함해서 보기">' + ICONS.history + "</button>" +
           "</div>"
         );
       }).join("") + "</div>";
@@ -1316,9 +1317,9 @@
         "<h3>길드 랭크 탭</h3>" +
         '<p class="hint">길드 랭크 기록이 있는 길드원들의 전적이 보여요.</p>' +
         '<ul class="mini-list">' +
-        "<li>각 줄에 이번 주(월~일) 요일별 승/패가 초록 테두리 \"승\" / 빨강 테두리 \"패\" 도장 모양으로 나와요. 그 날 경기가 없으면 요일 글자만 연하게 표시돼요.</li>" +
+        "<li>각 줄에 이번 주(월~일)에 실제로 경기한 날의 승/패만 초록 테두리 \"승\" / 빨강 테두리 \"패\" 도장 모양으로 순서대로 나와요. 경기가 없었던 날은 아무것도 표시되지 않고 그냥 건너뛰어요.</li>" +
         "<li>맨 오른쪽 승률(%)은 이번 주가 아니라 그 길드원의 지금까지 전체 전적을 통틀어 계산돼요.</li>" +
-        "<li>맨 끝의 시계 모양 버튼을 누르면 그 길드원의 최근 7회 기록만 따로 모아서 볼 수 있어요.</li>" +
+        "<li>맨 끝의 시계 모양 버튼을 누르면 이번 주 기록 앞에 그 전주의 마지막 2경기를 추가로 붙여서, 더 긴 흐름으로 함께 볼 수 있어요.</li>" +
         "<li>이번 주(월~일 기준) 길드 랭크를 5회 이상 참여한 길드원은 줄 배경이 연한 하늘색, 7회 참여하면 연한 노란색으로 표시돼요.</li>" +
         "<li>상단에 오늘 날짜와 \"9월 2주차\" 같은 몇 주차인지, 마지막으로 기록이 추가·삭제된 시각도 함께 보여요.</li>" +
         "<li>오른쪽 위 왕관 아이콘(\"담당자\")을 누르면 \"일별 길드 랭크 운영진\" 칸이 떠요. 월~일 요일별로 그날 길드 랭크를 담당하는 사람 닉네임을 적을 수 있어요. 관리자 비밀번호 없이 누구나 바로 적고 저장할 수 있어요.</li>" +
