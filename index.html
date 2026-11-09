@@ -131,7 +131,7 @@
     width: 30px; height: 30px; border-radius: 50%; background: var(--accent); color: var(--accent-ink);
     display: flex; align-items: center; justify-content: center; font-family: 'Gowun Dodum', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif; font-size: 13px;
   }
-  .rank-row .who .rname { font-weight: 600; }
+  .rank-row .who .rname { font-weight: 600; font-size: 14px; }
   .rank-row .who .rmeta { font-size: 12px; color: var(--ink-faint); }
   .rank-row .wl { font-family: 'JetBrains Mono', monospace; font-size: 13px; text-align: right; }
   .rank-row .wl b.w { color: var(--positive); }
@@ -278,6 +278,7 @@
     .brand-title { font-size: 15px; }
     .topbar { gap: 8px; padding: 12px 14px; }
     .rank-row { grid-template-columns: 28px 1fr auto auto 24px; gap: 8px; }
+    .rank-row .who .rname { font-size: 12.5px; }
     .stamp-row { gap: 2px; }
     .stamp { width: 18px; height: 18px; font-size: 8px; border-width: 1.5px; }
     .rank-row-btn { width: 24px; height: 24px; }
@@ -914,7 +915,7 @@
           ? weekGames.map(function (rec) {
               return '<span class="stamp' + (rec.result === "loss" ? " loss" : "") + '" title="' + fmtDateShort(rec.date) + '">' + (rec.result === "loss" ? "패" : "승") + "</span>";
             }).join("")
-          : '<span style="color:var(--ink-faint);font-size:12px">이번 주 기록 없음</span>';
+          : '<span style="color:var(--ink-faint);font-size:11px">기록없음</span>';
         var hlClass = p.weekCount >= 7 ? " hl-gold" : p.weekCount >= 5 ? " hl-sky" : "";
         return (
           '<div class="rank-row' + hlClass + '">' +
