@@ -183,6 +183,9 @@
   .btn.small { padding: 6px 11px; font-size: 12.5px; border-radius: 8px; }
   .table-wrap { overflow-x: auto; border: 1px solid var(--paper-border); border-radius: 14px; }
   table { width: 100%; border-collapse: collapse; font-size: 13.5px; min-width: 480px; }
+  .table-wrap.compact { overflow-x: visible; }
+  .table-wrap.compact table { min-width: 0; }
+  .table-wrap.compact th, .table-wrap.compact td { white-space: normal; word-break: keep-all; }
   th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--paper-border); white-space: nowrap; }
   th { color: var(--ink-faint); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
   tr:last-child td { border-bottom: none; }
@@ -964,7 +967,7 @@
     if (reputeWarn.length === 0) {
       reputeBody = emptyState("경고 대상인 명성 유저가 없어요", "관리 탭에서 경고 대상으로 지정된 명성 유저가 없어요.", ICONS.check);
     } else {
-      reputeBody = '<div class="table-wrap"><table><thead><tr><th>길드원</th><th>활동 포인트</th><th>명성</th></tr></thead><tbody>' +
+      reputeBody = '<div class="table-wrap compact"><table><thead><tr><th>길드원</th><th>활동 포인트</th><th>명성</th></tr></thead><tbody>' +
         reputeWarn.map(function (m) {
           return "<tr><td>" + escapeHtml(m.name) + '</td><td class="mono"' + (m.lowActivity ? ' style="color:var(--negative)"' : "") + ">" + Number(m.points || 0) + '</td><td class="mono"' + (m.lowReputation ? ' style="color:var(--negative)"' : "") + ">" + Number(m.reputation || 0) + "</td></tr>";
         }).join("") + "</tbody></table></div>";
@@ -975,7 +978,7 @@
     if (guildRankWarn.length === 0) {
       guildRankWarnBody = emptyState("경고 대상인 길랭 유저가 없어요", "관리 탭에서 경고 대상으로 지정된 길랭 유저가 없어요.", ICONS.check);
     } else {
-      guildRankWarnBody = '<div class="table-wrap"><table><thead><tr><th>길드원</th><th>명성</th></tr></thead><tbody>' +
+      guildRankWarnBody = '<div class="table-wrap compact"><table><thead><tr><th>길드원</th><th>명성</th></tr></thead><tbody>' +
         guildRankWarn.map(function (m) {
           return "<tr><td>" + escapeHtml(m.name) + '</td><td class="mono" style="color:var(--negative)">' + Number(m.reputation || 0) + "</td></tr>";
         }).join("") + "</tbody></table></div>";
@@ -1080,7 +1083,7 @@
       var sortedGuildRankMembers = guildRankMembers.slice().sort(function (a, b) {
         return guildRankWeeklyCount(a.id) - guildRankWeeklyCount(b.id);
       });
-      body = '<div class="table-wrap"><table><thead><tr><th>길드원</th><th>이번 주 길랭 횟수</th></tr></thead><tbody>' +
+      body = '<div class="table-wrap compact"><table><thead><tr><th>길드원</th><th>이번 주 길랭 횟수</th></tr></thead><tbody>' +
         sortedGuildRankMembers.map(function (m) {
           var n = guildRankWeeklyCount(m.id);
           var low = n < weeklyMin;
