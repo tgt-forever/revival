@@ -622,10 +622,56 @@
   }
 
   /* ---------------- recent games modal ---------------- */
-  function showRecentGamesModal(memberKey) {
+  function lastWeekDatesMonSun() {
     var today = new Date();
-    var lastWeekAnchor = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 7);
-    var lastWeekDates = weekDatesMonSun(lastWeekAnchor);
+    var anchor = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 7);
+    return weekDatesMonSun(anchor);
+  }
+  function buildLastWeekReportEntries() {
+    var lastWeekDates = lastWeekDatesMonSun();
+    var dateSet = {};
+    lastWeekDates.forEach(function (d) { dateSet[d] = true; });
+    var byMember = {};
+    rankRecords.forEach(function (r) {
+      if (!dateSet[r.date]) return;
+      var key = r.memberId || r.memberName;
+      if (!byMember[key]) {
+        var m = memberById(key);
+        byMember[key] = { byDate: {}, name: (m && m.name) || r.memberName || key };
+      }
+      byMember[key].byDate[r.date] = r;
+    });
+    var entries = Object.keys(byMember).map(function (key) {
+      var entry = byMember[key];
+      var games = lastWeekDates.map(function (d) { return entry.byDate[d]; }).filter(Boolean);
+      var wins = games.filter(function (r) { return r.result === "win"; }).length;
+      var losses = games.length - wins;
+      var stamps = games.map(function (r) { return r.result === "loss" ? "패" : "승"; }).join("");
+      return { name: entry.name, games: games.length, wins: wins, losses: losses, stamps: stamps };
+    });
+    entries.sort(function (a, b) { return (a.name || "").localeCompare(b.name || "", "ko"); });
+    return entries;
+  }
+  function downloadLastWeekReport() {
+    var entries = buildLastWeekReportEntries();
+    if (!entries.length) { toast("지난주 길랭 기록이 없어요"); return; }
+    var lastWeekDates = lastWeekDatesMonSun();
+    var text = entries.map(function (e) {
+      return e.name + " - " + e.games + "경기 - " + e.wins + "승" + e.losses + "패 - " + e.stamps;
+    }).join("\n");
+    var blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    var fileLabel = lastWeekDates[0].replace(/-/g, "") + "_" + lastWeekDates[6].replace(/-/g, "");
+    a.href = url;
+    a.download = "지난주_길랭_전적_" + fileLabel + ".txt";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  }
+  function showRecentGamesModal(memberKey) {
+    var lastWeekDates = lastWeekDatesMonSun();
     var memberRecords = rankRecords.filter(function (r) { return (r.memberId || r.memberName) === memberKey; });
     var byDate = {};
     memberRecords.forEach(function (r) { byDate[r.date] = r; });
@@ -1228,6 +1274,12 @@
     } else if (adminSubTab === "rank") {
       subContent = (
         '<div class="section">' +
+        "<h3>지난주 길랭 전적 다운로드</h3>" +
+        '<p class="hint">지난주(월~일)에 길드 랭크 기록이 있는 길드원 명단과 전적을 텍스트 파일(.txt)로 받아요. 형식: 닉네임 - N경기 - N승N패 - 전적(승/패를 날짜 순서대로 이어붙임)</p>' +
+        '<button class="btn" id="downloadLastWeekRankBtn">다운로드</button>' +
+        "</div>" +
+
+        '<div class="section">' +
         "<h3>길드 랭크 기록 추가</h3><p class=\"hint\">길드원, 날짜, 승패 결과를 입력해 기록을 남기세요.</p>" +
         '<div class="row" style="margin-bottom:12px">' +
         '<select id="rankMember">' + (memberOptions || "<option value=\"\">길드원 없음</option>") + "</select>" +
@@ -1355,7 +1407,7 @@
         '<p class="hint">처음 들어가면 관리자 비밀번호를 한 번 설정해야 하고, 이후에는 매번 비밀번호를 입력해야 들어갈 수 있어요. 아래 7개 카테고리로 나뉘어 있어요.</p>' +
         '<ul class="mini-list">' +
         '<li><b>① 길드원 관리</b> — 새 길드원 추가, 길드원 신고 등록(길드원 선택 + 사유 입력 → 운영 탭에 누적 건수로 표시, "수정" 버튼을 누르면 그 길드원의 신고 내역을 하나씩 삭제할 수 있어요), 명성 유저 목록(이름 · 활동 포인트 · 명성 저장 + "경고" 칸의 활동 · 명성 버튼으로 각각 경고 지정), 길랭 유저 목록(이름 · 명성 · 유형 관리, 참여 횟수 경고는 자동 계산 + "경고" 칸의 명성 버튼으로 명성 경고 지정), 관리자 목록(이름 · 유형만), 유형 미지정 길드원 목록.</li>' +
-        '<li><b>② 길드 랭크 기록</b> — 길드원, 날짜, 승/패를 선택하고 "기록 추가"를 누르면 랭크 탭과 길랭 횟수 탭에 바로 반영돼요. 잘못 입력한 기록은 목록에서 "삭제"로 지울 수 있어요.</li>' +
+        '<li><b>② 길드 랭크 기록</b> — 맨 위 "다운로드" 버튼을 누르면 지난주(월~일)에 길드 랭크 기록이 있는 길드원 명단과 전적을 "닉네임 - N경기 - N승N패 - 전적" 형식의 텍스트 파일로 받을 수 있어요. 그 아래에서는 길드원, 날짜, 승/패를 선택하고 "기록 추가"를 누르면 랭크 탭과 길랭 횟수 탭에 바로 반영돼요. 잘못 입력한 기록은 목록에서 "삭제"로 지울 수 있어요.</li>' +
         '<li><b>③ 활동 불가 안내</b> — 길드원, 기간, 사유를 입력해 등록하면 상단 확성기 아이콘 목록에 바로 반영돼요.</li>' +
         '<li><b>④ 타 길드 정보</b> — 길드 이름과 특이사항을 등록하면 운영 탭(비밀번호 필요)에 표시돼요. 같은 길드 이름으로 여러 번 등록하면 한 카드에 묶여서 보여요.</li>' +
         '<li><b>⑤ 대기자 목록</b> — 길드 가입 대기자와 카드교환 대기자를 각각 이름 · 메모로 등록·관리해요. 등록하면 상단 느낌표 아이콘 목록에 바로 반영돼요.</li>' +
@@ -1571,6 +1623,9 @@
         toast("신고 내역을 삭제했어요");
       };
     });
+
+    var downloadLastWeekRankBtn = document.getElementById("downloadLastWeekRankBtn");
+    if (downloadLastWeekRankBtn) downloadLastWeekRankBtn.onclick = function () { downloadLastWeekReport(); };
 
     var addRankBtn = document.getElementById("addRankBtn");
     if (addRankBtn) addRankBtn.onclick = async function () {
