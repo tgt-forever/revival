@@ -172,6 +172,7 @@
     padding: 9px 12px; font-size: 14px; outline: none;
   }
   textarea { width: 100%; box-sizing: border-box; resize: vertical; font-family: inherit; display: block; margin-bottom: 10px; }
+  .bulk-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   input:focus, select:focus, textarea:focus { border-color: var(--focus); }
   .btn {
     display: inline-flex; align-items: center; gap: 6px; background: var(--accent); color: var(--accent-ink);
@@ -271,6 +272,7 @@
   .guildinfo-noterow .gnote { flex: 1; }
 
   @media (max-width: 760px) {
+    .bulk-grid { grid-template-columns: 1fr; }
     .tabrail { display: none; }
     .bottombar { display: flex; }
     .layout { padding: 14px; padding-bottom: 84px; }
@@ -461,26 +463,30 @@
   }
   function memberById(id) { for (var i = 0; i < members.length; i++) if (members[i].id === id) return members[i]; return null; }
   function memberByExactName(name) { for (var i = 0; i < members.length; i++) if (members[i].name === name) return members[i]; return null; }
-  function parseBulkRankLine(line) {
-    var trimmed = line.trim();
-    if (!trimmed) return null;
-    var last = trimmed.slice(-1);
-    if (last !== "승" && last !== "패") return null;
-    var namePart = trimmed.slice(0, -1).replace(/[\s\-:,]+$/, "").trim();
-    if (!namePart) return null;
-    return { name: namePart, result: last === "승" ? "win" : "loss" };
+  function parseBulkRankNameList(text) {
+    return text.split(/\r?\n/)
+      .map(function (line) { return line.replace(/^\s*\d+\s*[.)、]?\s*/, "").trim(); })
+      .filter(function (name) { return name.length > 0; });
   }
-  function parseBulkRankText(text) {
-    var lines = text.split(/\r?\n/).map(function (l) { return l.trim(); }).filter(function (l) { return l.length > 0; });
+  function parseBulkRankResultString(text) {
+    var cleaned = text.replace(/\s+/g, "");
+    var results = [];
+    for (var i = 0; i < cleaned.length; i++) {
+      var ch = cleaned.charAt(i);
+      if (ch !== "승" && ch !== "패") return { results: null, invalidChar: ch, invalidIndex: i };
+      results.push(ch === "승" ? "win" : "loss");
+    }
+    return { results: results, invalidChar: null, invalidIndex: -1 };
+  }
+  function buildBulkRankEntries(names, results) {
     var matched = [];
     var failed = [];
-    lines.forEach(function (line) {
-      var parsed = parseBulkRankLine(line);
-      if (!parsed) { failed.push(line); return; }
-      var member = memberByExactName(parsed.name);
-      if (!member) { failed.push(line); return; }
-      matched.push({ member: member, result: parsed.result, raw: line });
-    });
+    for (var i = 0; i < names.length; i++) {
+      var name = names[i];
+      var member = memberByExactName(name);
+      if (!member) { failed.push((i + 1) + "번(" + name + ")"); continue; }
+      matched.push({ member: member, result: results[i], raw: (i + 1) + "." + name });
+    }
     return { matched: matched, failed: failed };
   }
   function weekStartKey(d) {
@@ -1355,13 +1361,16 @@
         "</div>" +
 
         '<div class="section">' +
-        "<h3>일괄 등록 (붙여넣기)</h3>" +
-        '<p class="hint">한 줄에 "닉네임-승" 또는 "닉네임-패" 형식으로 여러 줄을 붙여넣으면 한 번에 등록돼요. 예시: 꾸실-승 / 부리-패 / 후부리-승 (닉네임은 길드원 관리에 등록된 이름과 정확히 같아야 해요)</p>' +
+        "<h3>일괄 등록 (순서 명단 + 승패 기록)</h3>" +
+        '<p class="hint">왼쪽 "순서 명단"에 번호와 닉네임을 한 줄에 하나씩 적고(예: 1. 랑아가), 오른쪽 "승패 기록"에는 그 순서 그대로 승패만 이어서 적으세요(예: 승승패승패...). 두 칸의 개수가 같아야 하고, 닉네임은 길드원 관리에 등록된 이름과 정확히 같아야 인식돼요.</p>' +
         '<div class="row" style="margin-bottom:10px">' +
         '<label class="hint" style="margin:0">기록 날짜</label>' +
         '<input type="date" id="bulkRankDate" value="' + toDateKey(new Date()) + '">' +
         "</div>" +
-        '<textarea id="bulkRankText" rows="6" placeholder="꾸실-승\n부리-패\n후부리-승"></textarea>' +
+        '<div class="bulk-grid">' +
+        '<div><label class="hint" style="display:block;margin:0 0 6px">순서 명단</label><textarea id="bulkRankNames" rows="8" placeholder="1. 랑아가\n2. 회수\n3. 시하"></textarea></div>' +
+        '<div><label class="hint" style="display:block;margin:0 0 6px">승패 기록</label><textarea id="bulkRankResults" rows="8" placeholder="승승패승패패승승패패승패"></textarea></div>' +
+        "</div>" +
         '<button class="btn" id="bulkRankAddBtn">일괄 등록</button>' +
         "</div>" +
 
@@ -1493,7 +1502,7 @@
         '<p class="hint">처음 들어가면 관리자 비밀번호를 한 번 설정해야 하고, 이후에는 매번 비밀번호를 입력해야 들어갈 수 있어요. 아래 7개 카테고리로 나뉘어 있어요.</p>' +
         '<ul class="mini-list">' +
         '<li><b>① 길드원 관리</b> — 새 길드원 추가, 길드원 신고 등록(길드원 선택 + 사유 입력 → 운영 탭에 누적 건수로 표시, "수정" 버튼을 누르면 그 길드원의 신고 내역을 하나씩 삭제할 수 있어요), 명성 유저 목록(이름 · 활동 포인트 · 명성 저장 + "경고" 칸의 활동 · 명성 버튼으로 각각 경고 지정), 길랭 유저 목록(이름 · 명성 · 유형 관리, 참여 횟수 경고는 자동 계산 + "경고" 칸의 명성 버튼으로 명성 경고 지정), 관리자 목록(이름 · 유형만), 유형 미지정 길드원 목록.</li>' +
-        '<li><b>② 길드 랭크 기록</b> — 맨 위 "이번 주 다운로드" / "지난주 다운로드" 버튼을 누르면 각각 이번 주(월~일, 오늘까지의 기록) 또는 지난주(월~일) 길드 랭크 기록이 있는 길드원 명단과 전적을 "닉네임 - N경기 - N승N패 - 전적" 형식의 텍스트 파일로 받을 수 있어요. 파일 아래쪽에는 참여보상(5회 이상 깜 / 7회 이상 깜주) · 승률보상(3승 깜 / 5승 깜깜깜 / 7승 깜깜깜깜깜, 가장 높은 기준 하나만 표시) · 연승보상(5연승 또는 7연승만 표시)을 받을 대상자가 자동으로 정리돼서 함께 들어가요. 그 아래 "일괄 등록" 칸에 "닉네임-승" / "닉네임-패" 형식으로 한 줄에 하나씩 여러 명을 붙여넣고 날짜를 확인한 다음 "일괄 등록"을 누르면 한 번에 전부 기록돼요(닉네임은 길드원 관리에 등록된 이름과 정확히 같아야 인식돼요). 맨 아래 입력칸에서는 길드원, 날짜, 승/패를 하나씩 선택하고 "기록 추가"를 누르면 랭크 탭과 길랭 횟수 탭에 바로 반영돼요. 잘못 입력한 기록은 목록에서 "삭제"로 지울 수 있어요.</li>' +
+        '<li><b>② 길드 랭크 기록</b> — 맨 위 "이번 주 다운로드" / "지난주 다운로드" 버튼을 누르면 각각 이번 주(월~일, 오늘까지의 기록) 또는 지난주(월~일) 길드 랭크 기록이 있는 길드원 명단과 전적을 "닉네임 - N경기 - N승N패 - 전적" 형식의 텍스트 파일로 받을 수 있어요. 파일 아래쪽에는 참여보상(5회 이상 깜 / 7회 이상 깜주) · 승률보상(3승 깜 / 5승 깜깜깜 / 7승 깜깜깜깜깜, 가장 높은 기준 하나만 표시) · 연승보상(5연승 또는 7연승만 표시)을 받을 대상자가 자동으로 정리돼서 함께 들어가요. 그 아래 "일괄 등록" 칸은 왼쪽에 번호+닉네임 순서 명단(예: 1. 랑아가)을, 오른쪽에 그 순서 그대로 승패만 이어서(예: 승승패...) 적고 날짜를 확인한 다음 "일괄 등록"을 누르면 한 번에 전부 기록돼요(두 칸의 개수가 같아야 하고, 닉네임은 길드원 관리에 등록된 이름과 정확히 같아야 인식돼요). 맨 아래 입력칸에서는 길드원, 날짜, 승/패를 하나씩 선택하고 "기록 추가"를 누르면 랭크 탭과 길랭 횟수 탭에 바로 반영돼요. 잘못 입력한 기록은 목록에서 "삭제"로 지울 수 있어요.</li>' +
         '<li><b>③ 활동 불가 안내</b> — 길드원, 기간, 사유를 입력해 등록하면 상단 확성기 아이콘 목록에 바로 반영돼요.</li>' +
         '<li><b>④ 타 길드 정보</b> — 길드 이름과 특이사항을 등록하면 운영 탭(비밀번호 필요)에 표시돼요. 같은 길드 이름으로 여러 번 등록하면 한 카드에 묶여서 보여요.</li>' +
         '<li><b>⑤ 대기자 목록</b> — 길드 가입 대기자와 카드교환 대기자를 각각 이름 · 메모로 등록·관리해요. 등록하면 상단 느낌표 아이콘 목록에 바로 반영돼요.</li>' +
@@ -1718,15 +1727,27 @@
     var bulkRankAddBtn = document.getElementById("bulkRankAddBtn");
     if (bulkRankAddBtn) bulkRankAddBtn.onclick = async function () {
       var dateInput = document.getElementById("bulkRankDate");
-      var textarea = document.getElementById("bulkRankText");
+      var namesArea = document.getElementById("bulkRankNames");
+      var resultsArea = document.getElementById("bulkRankResults");
       var dateVal = dateInput.value || toDateKey(new Date());
-      var parsed = parseBulkRankText(textarea.value || "");
+      var names = parseBulkRankNameList(namesArea.value || "");
+      if (names.length === 0) { toast("먼저 순서 명단을 입력해주세요"); return; }
+      var parsedResults = parseBulkRankResultString(resultsArea.value || "");
+      if (!parsedResults.results) {
+        toast("승패 기록에 승/패가 아닌 글자(\"" + parsedResults.invalidChar + "\")가 있어요. 승/패만 이어서 적어주세요");
+        return;
+      }
+      if (names.length !== parsedResults.results.length) {
+        toast("순서 명단(" + names.length + "명)과 승패 기록(" + parsedResults.results.length + "개) 개수가 달라요. 맞춰서 다시 입력해주세요");
+        return;
+      }
+      var parsed = buildBulkRankEntries(names, parsedResults.results);
       if (parsed.matched.length === 0) {
-        toast(parsed.failed.length ? "인식된 줄이 없어요. 형식이나 닉네임을 확인해주세요" : "먼저 내용을 입력해주세요");
+        toast("등록할 수 있는 닉네임이 없어요. 길드원 관리에 등록된 이름과 똑같은지 확인해주세요");
         return;
       }
       var confirmMsg = parsed.matched.length + "건을 " + dateVal + " 날짜로 일괄 등록할까요?" +
-        (parsed.failed.length ? " (" + parsed.failed.length + "줄은 인식하지 못해 제외돼요: " + parsed.failed.join(", ") + ")" : "");
+        (parsed.failed.length ? " (닉네임을 못 찾아 제외: " + parsed.failed.join(", ") + ")" : "");
       var ok = await confirmDialog(confirmMsg, "등록");
       if (!ok) return;
       for (var i = 0; i < parsed.matched.length; i++) {
@@ -1740,8 +1761,9 @@
         });
       }
       await updateDoc(doc(db, "config", "settings"), { rankLastUpdatedAt: new Date().toISOString() });
-      textarea.value = "";
-      toast(parsed.matched.length + "건 등록했어요" + (parsed.failed.length ? " (" + parsed.failed.length + "줄 제외)" : ""));
+      namesArea.value = "";
+      resultsArea.value = "";
+      toast(parsed.matched.length + "건 등록했어요" + (parsed.failed.length ? " (" + parsed.failed.length + "명 제외)" : ""));
     };
 
     var addRankBtn = document.getElementById("addRankBtn");
